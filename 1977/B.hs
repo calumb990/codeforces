@@ -1,6 +1,6 @@
 import System.IO
 import Data.Bits
-import Data.Char
+import Data.Sequence
 
 -- SYSTEM --
 
@@ -33,31 +33,6 @@ flushLine text = do
 
 ------------
 
--- TEXT --
-
-{-
-  Removes whitespace from the
-  front and back of a string
--}
-trim :: String -> String
-trim = let f = reverse . dropWhile isSpace in f . f
-
-{-
-  Replaces an item in a string
-  at a certain index provided
--}
-replace :: String -> Int -> Int -> String -> String
-replace is start size xs = take start xs ++ is ++ drop (start+size) xs
-
-{-
-  Takes a substring from a string
-  using two indexes as the range
--}
-substring :: Int -> Int -> String -> String
-substring start size = take size . drop start
-
-----------
-
 main :: IO ()
 main = do
     list <- input
@@ -68,28 +43,26 @@ performTests :: Int -> IO ()
 performTests 0 = return ()
 performTests tests = do
     list <- input
-    let n = read (list !! 0) :: Int
+    let n = read (head list) :: Int
     let result = binaryColour n False
-    flushLine (show (numbers result))
+    flushLine (show (Data.Sequence.length result))
     separate result
     performTests (tests-1)
 
-separate :: String -> IO ()
-separate (x:[]) = flushLine [x]
-separate (x:xs) = do
-    if (x == '-')
-        then flush [x]
-        else flush (x : " ")
+separate :: Seq Int -> IO ()
+separate (x:<|Empty) = flushLine (show x)
+separate (x:<|xs) = do
+    flush (show x ++ " ")
     separate xs
 
-binaryColour :: Int -> Bool -> String
-binaryColour 0 True = "-1"
-binaryColour 0 False = "1"
-binaryColour 1 True = "-1"
-binaryColour 1 False = "1"
+binaryColour :: Int -> Bool -> Seq Int
+binaryColour 0 True = fromList [-1]
+binaryColour 0 False = fromList [1]
+binaryColour 1 True = fromList [-1]
+binaryColour 1 False = fromList [1]
 binaryColour n negate
     | n == n' = simplify normalResult
-    | otherwise = simplify (colourResult ++ outputResult)
+    | otherwise = simplify (colourResult >< outputResult)
   where
     oBit = 64 - countLeadingZeros n
     oValue = 2 ^ oBit
@@ -98,42 +71,33 @@ binaryColour n negate
     pValue = 2 ^ pBit
     normalResult = outBits n 0 0 oBit negate
     colourResult = binaryColour n' (not negate)
-    outputResult = outBits oValue 0 (numbers colourResult) (oBit+1) negate
+    outputResult = outBits oValue 0 (Data.Sequence.length colourResult) (oBit+1) negate
 
-outBits :: Int -> Int -> Int -> Int ->  Bool -> String
+outBits :: Int -> Int -> Int -> Int -> Bool -> Seq Int
 outBits x y lowBit highBit negate
-    | lowBit == highBit = ""
-    | negate && xBit == 0 && yBit == 1 = "1" ++ result
-    | negate && xBit == 1 && yBit == 0 = "-1" ++ result
-    | xBit == 0 && yBit == 1 = "-1" ++ result
-    | xBit == 1 && yBit == 0 = "1" ++ result
-    | otherwise = "0" ++ result
+    | lowBit == highBit = fromList []
+    | negate && xBit == 0 && yBit == 1 = 1 <| result
+    | negate && xBit == 1 && yBit == 0 = -1 <| result
+    | xBit == 0 && yBit == 1 = -1 <| result
+    | xBit == 1 && yBit == 0 = 1 <| result
+    | otherwise = 0 <| result
   where
-    xBit = (shiftR x lowBit) .&. 1
-    yBit = (shiftR y lowBit) .&. 1
+    xBit = shiftR x lowBit .&. 1
+    yBit = shiftR y lowBit .&. 1
     result = outBits x y (lowBit+1) highBit negate
 
-simplify :: String -> String
+simplify :: Seq Int -> Seq Int
 simplify = simplify' 0
 
-simplify' :: Int -> String -> String
+simplify' :: Int -> Seq Int -> Seq Int
 simplify' x colour
-    | x + 2 >= length colour = colour
-    | substring x 3 colour == "1-1" = trimZeroes (simplify' (x+1) negative)
-    | substring x 3 colour == "-11" = trimZeroes (simplify' (x+1) positive)
+    | x + 1 >= Data.Sequence.length colour = colour
+    | index colour x == 1 && index colour (x+1) == -1 = trimZeroes negative
+    | index colour x == -1 && index colour (x+1) == 1 = trimZeroes positive
     | otherwise = trimZeroes (simplify' (x+1) colour)
   where
-    negative = replace "-10" x 3 colour
-    positive = replace "10" x 3 colour
+    negative = simplify' (x+1) (deleteAt (x+1) (deleteAt (x+1) (insertAt x (-1) colour)))
+    positive = simplify' (x+1) (deleteAt (x+1) (deleteAt (x+1) (insertAt x 1 colour)))
 
-trimZeroes :: String -> String
-trimZeroes xs = (reverse (dropWhile (\c -> c == ' ' || c == '0') (reverse xs)))
-
-numbers :: String -> Int
-numbers xs = numbers' xs 0
-
-numbers' :: String -> Int -> Int
-numbers' [] c = c
-numbers' (x:xs) c
-    | x == '1' || x == '0' = numbers' xs (c+1)
-    | otherwise = numbers' xs c
+trimZeroes :: Seq Int -> Seq Int
+trimZeroes = dropWhileR (== 0)
