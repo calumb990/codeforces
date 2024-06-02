@@ -55,3 +55,23 @@ flushLine text = do
     hFlush stdout
 
 ----------------------------------
+
+main :: IO ()
+main = do
+    list <- input
+    let tests = read (head list) :: Int
+    performTests tests
+
+performTests :: Int -> IO ()
+performTests 0 = return ()
+performTests x = do
+    list <- input
+    let amount = read (head list) :: Int
+    let price = read (list !! 1) :: Int
+    let discount = read (list !! 2) :: Int
+    if discount >= (price * 2)
+    then flushLine (show (amount * price))
+    else if even amount
+    then flushLine (show (amount `div` 2 * discount))
+    else flushLine (show (amount `div` 2 * discount + price))
+    performTests (x-1)

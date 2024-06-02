@@ -1,6 +1,9 @@
+# Builds
+*
+!*.*
+!/**/
+*.hi
+*.o
+
 # IDE
 .vscode
-
-# Builds
-*/*script*
-!*/script.hs
